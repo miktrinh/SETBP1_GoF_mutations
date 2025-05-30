@@ -45,9 +45,11 @@ if(file.exists(cleanSrat_fp) & skipIfExists){
     cleanSrat = readRDS(cleanSrat_fp)  
 }else{
     if(!dir.exists(outDir_sub)){
-    message(sprintf('Creating output directory'))
-    dir.create(outDir_sub,recursive = T)
-}
+        message(sprintf('Creating output directory'))
+        dir.create(outDir_sub,recursive = T)
+    }
+    
+    
     # please get the rest of the script template from aneuploidy/scripts/sampleQC_2.R
     dataDirs = file.path(list.files('Data/inhouse_SETBP1_10X',full.names = T,pattern = 'GRCh38-2020-A'),'/filtered_feature_bc_matrix')
     # Remove MDS-SETBP1 sample
@@ -57,7 +59,9 @@ if(file.exists(cleanSrat_fp) & skipIfExists){
 
     names(dataDirs) = gsub('^.*_CG_|_GRCh38-2020-A.*$','',dataDirs)    
     names(dataDirs) = gsub('^.*_MY_','MY_',names(dataDirs))    
-    names(dataDirs) = gsub('^.*_SB_','SB_',names(dataDirs))    
+    names(dataDirs) = gsub('^.*_SB_','SB_',names(dataDirs))
+    names(dataDirs) = gsub('_','.',names(dataDirs))    
+    
   
     dataDirs=dataDirs[file.exists(dataDirs)]
     dataDirs=dataDirs[sapply(dataDirs, function(x){length(list.files(x))>0})]
