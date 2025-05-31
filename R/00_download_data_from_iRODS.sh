@@ -117,7 +117,7 @@ samples=(
 
 
 
-outDir=~/0_Projects_git_repo/SETBP1_GoF_mutations/Data/inhouse_SETBP1_10X/
+outDir=Data/inhouse_SETBP1_10X/
 mkdir -p $outDir
 
 for irod_path in ${samples[@]}; do

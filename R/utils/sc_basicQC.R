@@ -199,7 +199,7 @@ cleanWithSoupX = function(cleanSrat,dataDirs,scPath,is10X=TRUE,numPCs=75,cluster
 #' @param rho_max_limit If provided, limit estimated_rho to the provided max value
 #' @return A data.frame with the scrublet results
 runSoupX = function(datadir,is10X = TRUE,toc = NULL,metadata=NULL,plotDir=NULL,scPath=NULL,rho_max_limit=NULL){
-  
+  require(Matrix)
   if(is.null(metadata)){
     message('Please provide metadata!')
   }
