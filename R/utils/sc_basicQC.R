@@ -1,5 +1,89 @@
 source('R/utils/sc_utils.R')
 
+# QC parameters
+QC_PARAMS <- function(
+  minGenes = 300,
+  minUMIs = 500,
+  skipSoup = FALSE,
+  rho_max_limit = NULL,
+  maxMT = 30,
+  maxBadFrac = 0.5,
+  numPCs = 75,
+  clusteringRes = 10,
+  skipScrub = FALSE,
+  scrubScoreMax = 0.5,
+  scrubPath = 'scrubletScores.tsv',
+  scPath = "strainedCounts",
+  doPlot = TRUE,
+  verbose = TRUE,
+  skipIfExists = FALSE,
+  keepMTCells = TRUE,
+  is10X = TRUE,
+  seed = 2397L
+){
+  # numeric QC thresholds
+  checkmate::qassert(minGenes, "N[0,]")
+  checkmate::qassert(minUMIs,  "N[0,]")
+  checkmate::qassert(maxMT,    "N[0,100]")
+  checkmate::qassert(maxBadFrac, "N[0,1]")
+  checkmate::qassert(numPCs,   "N[1,]")
+  checkmate::qassert(clusteringRes, "N(0,]")
+  checkmate::qassert(scrubScoreMax, "N[0,1]")
+  checkmate::qassert(seed, "I1")
+  
+  # logical flags
+  checkmate::qassert(skipSoup, "B1")
+  checkmate::qassert(skipScrub, "B1")
+  checkmate::qassert(doPlot, "B1")
+  checkmate::qassert(verbose, "B1")
+  checkmate::qassert(skipIfExists, "B1")
+  checkmate::qassert(keepMTCells, "B1")
+  checkmate::qassert(is10X, "B1")
+  
+  # paths / strings
+  checkmate::qassert(scrubPath, "S1")
+  checkmate::qassert(scPath, "S1")
+  
+  # nullable parameters
+  if (!is.null(rho_max_limit)) {
+    checkmate::qassert(rho_max_limit, "N(0,1]")
+  }
+  
+  # cross-parameter logic
+  if (skipScrub && !is.null(scrubScoreMax) && verbose) {
+    message("skipScrub = TRUE -> scrubScoreMax will be ignored")
+  }
+  
+  if (skipSoup && !is.null(rho_max_limit) && verbose) {
+    message("skipSoup = TRUE -> rho_max_limit will be ignored")
+  }
+  
+  if (numPCs < 10 && clusteringRes > 5) {
+    warning("Low numPCs with high clusteringRes may cause overclustering")
+  }
+  
+  # return
+  list(
+    minGenes = minGenes,
+    minUMIs = minUMIs,
+    skipSoup = skipSoup,
+    rho_max_limit = rho_max_limit,
+    maxMT = maxMT,
+    maxBadFrac = maxBadFrac,
+    numPCs = numPCs,
+    clusteringRes = clusteringRes,
+    skipScrub = skipScrub,
+    scrubScoreMax = scrubScoreMax,
+    scrubPath = scrubPath,
+    scPath = scPath,
+    doPlot = doPlot,
+    verbose = verbose,
+    skipIfExists = skipIfExists,
+    keepMTCells = keepMTCells,
+    is10X = is10X,
+    seed = seed
+  )
+}
 
 #' Run scrublet
 #' 
