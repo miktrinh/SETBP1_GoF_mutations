@@ -77,10 +77,10 @@ if(file.exists(cleanSrat_fp) & skipIfExists){
     
     QC.output = basicQC(dataDirs = dataDirs,maxMT = maxMT,
                     minGenes=minGenes,minUMIs=minUMIs,maxBadFrac=maxBadFrac,numPCs=numPCs,clusteringRes=clusteringRes,
-                        cleanCountDir=cleanCountDir,
-                        skipScrub=skipScrub,skipSoup=skipSoup,scrubScoreMax=scrubScoreMax,scrubPath=scrubPath,
-                        metadata=metadata,matchBy=matchBy,scPath=scPath,outPath=outPath,skipIfExists=skipIfExists,
-                        doPlot=doPlot,plotDir=plotDir,verbose=verbose,is10X=is10X)
+                    cleanCountDir=cleanCountDir,
+                    skipScrub=skipScrub,skipSoup=skipSoup,scrubScoreMax=scrubScoreMax,scrubPath=scrubPath,
+                    metadata=metadata,matchBy=matchBy,scPath=scPath,outPath=outPath,skipIfExists=skipIfExists,
+                    doPlot=doPlot,plotDir=plotDir,verbose=verbose,is10X=is10X)
   
     cleanSrat = QC.output[[1]]
     df.out = QC.output[[2]]
@@ -88,43 +88,4 @@ if(file.exists(cleanSrat_fp) & skipIfExists){
     write.csv(df.out,paste0(outPath,'qc_summary.csv'))
 }
 
-#     qc.summary = QC.output[[2]]
-  
-  
-#   ## add metadata to srat object
-#   srat = QC.output[[1]]
-#   srat$channelID = srat$orig.ident
-#   srat$cellID = rownames(srat@meta.data)
-  
-#   srat$donorID = 'NA'
-#   srat$donorID[srat$channelID %in% c('c09','c10','c11','c75','c76','c77','c78')] = 'GOSH84'
-#   srat$donorID[srat$channelID %in% c('c34','c35','c36','c37')] = 'BJ9'
-#   srat$batch = 'NA'
-#   srat$batch[srat$channelID %in% c('c34','c35','c36','c37')] = 'BJ9_1'
-#   srat$batch[srat$channelID %in% c('c75','c76','c77','c78')] = 'GOSH84_1'
-#   srat$batch[srat$channelID %in% c('c09','c10','c11')] = 'GOSH84_2'
-#   srat$sex = 'NA'
-#   srat$sex[srat$donorID == 'GOSH84'] = 'XX'
-#   srat$sex[srat$donorID == 'BJ9'] = 'XY'
-#   srat$age = 'NA'
-#   srat$age[srat$donorID == 'GOSH84'] = '10'
-#   srat$age[srat$donorID == 'BJ9'] = '2'
-  
-#   saveRDS(srat,'/lustre/scratch117/casm/team274/mt22/SETBP1/Results/1_setbp1QC/jan23/SETBP1_QC_clean_noMTCells.RDS')
-  
-#   ## Add mdat to highMT cells srat too
-#   srat_highMT = readRDS('/lustre/scratch117/casm/team274/mt22/SETBP1/Results/1_setbp1QC/jan23/SETBP1_QC_clean_withMTCells.RDS')
-#   srat_highMT$cellID = rownames(srat_highMT@meta.data)
-#   m = match(srat_highMT$orig.ident,srat$orig.ident)
-#   sum(is.na(m))
-  
-#   srat_highMT$channelID = as.character(srat$channelID[m])
-#   srat_highMT$donorID = as.character(srat$donorID[m])
-#   srat_highMT$batch = as.character(srat$batch[m])
-#   srat_highMT$sex = as.character(srat$sex[m])
-#   srat_highMT$age = as.character(srat$age[m])
-  
-#   saveRDS(srat_highMT,'/lustre/scratch117/casm/team274/mt22/SETBP1/Results/1_setbp1QC/jan23/SETBP1_QC_clean_withMTCells.RDS')
-  
-# }
 
