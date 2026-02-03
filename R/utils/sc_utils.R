@@ -409,7 +409,7 @@ run_celltypist_annotation <- function(
   mtx <- seurat_obj@assays$RNA@counts
   
   message("Predicting cell labels...")
-  lr_output <- runCelltypist(cnts = mtx, model = model)
+  lr_output <- runCelltypist(cnts = mtx)
   
   message("Computing stable softmax...")
   softmax_p <- stable_softmax(lr_output$logitMat)
@@ -725,15 +725,17 @@ log_annotation_run <- function(
 #' @param output_prefix Output file prefix
 #' @param celltypist_result CellTypist results list
 #' @param marker_result Marker scoring results list
+#' @import patchwork
 plot_annotation_qc <- function(
   seurat_obj,
   output_prefix,
   celltypist_result,
-  marker_result
+  marker_result,
+  params
 ) {
   message("\n==== Generating QC plots ====")
   
-  pdf(paste0(output_prefix, "_annotation_qc.pdf"), width = 16, height = 12)
+  pdf(paste0(output_prefix, "_annotation_qc.pdf"), width = 25, height = 25)
   
   # ---- Page 1: CellTypist confidence ----
   p1 <- FeaturePlot(seurat_obj, features = "celltypist_max_prob",
@@ -752,7 +754,7 @@ plot_annotation_qc <- function(
                 label = TRUE, repel = TRUE, label.size = 3) +
     NoLegend() + ggtitle("CellTypist Softmax Labels")
   
-  print((p1 + p2) / (p3 + p4))
+  print((p1 | p2) / (p3 | p4))
   
   # ---- Page 2: Marker scoring ----
   p5 <- FeaturePlot(seurat_obj, features = "marker_ambiguity",
@@ -767,12 +769,12 @@ plot_annotation_qc <- function(
                 label = TRUE, label.size = 3) +
     NoLegend() + ggtitle("Seurat Clusters")
   
-  print((p5 + p6) / p7)
+  print((p5 | p6) / p7)
   
   # ---- Page 3: Consensus ----
   p8 <- DimPlot(seurat_obj, group.by = "consensus_celltype",
                 label = TRUE, repel = TRUE, label.size = 2.5) +
-    ggtitle("Consensus Annotation")
+    ggtitle("Consensus Annotation") + NoLegend()
   
   print(p8)
   
@@ -833,14 +835,14 @@ plot_annotation_qc <- function(
   # ---- Page 6: Dotplot of key markers ----
   Idents(seurat_obj) <- "consensus_celltype"
   
-  top_markers <- unique(unlist(HEME_MARKERS_SHORT))
+  top_markers <- unique(unlist(HEME_MARKERS))
   top_markers <- intersect(top_markers, rownames(seurat_obj))
   
   if (length(top_markers) > 0) {
     p9 <- DotPlot(
       seurat_obj,
       features = top_markers,
-      dot.scale = ANNOT_PARAMS$dotplot_dot_scale
+      dot.scale = params$dotplot_dot_scale
     ) +
       RotatedAxis() +
       scale_color_viridis_c(option = "C") +
@@ -857,7 +859,7 @@ plot_annotation_qc <- function(
     p10 <- DotPlot(
       seurat_obj,
       features = top_markers,
-      dot.scale = ANNOT_PARAMS$dotplot_dot_scale
+      dot.scale = params$dotplot_dot_scale
     ) +
       RotatedAxis() +
       scale_color_viridis_c(option = "C") +
