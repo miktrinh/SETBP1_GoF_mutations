@@ -22,6 +22,7 @@ ANNOT_COLS <- c(
   t_cd8                     = "#ECAFAD",
   gd_t_cells                = "#D37295",
   mait_cells                = "#741b47",
+  nkt_cells                 = "#7A6F9B",
   
   nk                        = "#79706E",
   ilc                       = "#BAB0AC",
@@ -33,9 +34,34 @@ ANNOT_COLS <- c(
   megakaryocyte             = "#B07AA1",
   mds                       = "#9C755F"
 )
-BROAD_ANNOT_COLS <- c(
-  'T'              = "#E15759",
-  'NK/ILC'         = "#79706E",
+
+ANNOT_COLS_BROAD <- c(
+  "B cells"        = "#9FCCC9",
+  
+  "CD16+ Mono"     = "#4E79A7",
+  "Mono/Mac"       = "#A0CBE8",
+  "Myeloid"        = "#A0CBE8",
+  
+  "DC1"            = "#8CD17D",
+  "DC2"            = "#B6992D",
+  "pDC"            = "#F1CE63",
+  
+  "T cells"        = "#e6a19e",
+  "NK cells"       = "#79706E",
+  
+  "NK_T"           = "#741b47",
+  
+  "Plasma cells"   = "#306918",
+  
+  "MegK"           = "#B07AA1",
+  
+  "MDS"            = "#bf6a02"
+  
+)
+
+LINEAGE_COLS <- c(
+  'T'            = "#e6a19e",
+  'NK/ILC'       = "#79706E",
   B              = "#9FCCC9",
   DC             = "#B6992D",
   Myeloid        = "#4E79A7",
@@ -74,26 +100,44 @@ umap_theme <- theme_void() +
 
 
 # Combined Integrated UMAP -----------------------------------------------------
-integrated_umap_fp = 'Results/03_scRNAseq_annotation/SGS_inhouse_MDS_L061_L067_annot_clean_HARM_2601_mdat.csv'
+integrated_umap_fp = 'Results/03_scRNAseq_annotation/SGS_inhouse_MDS_L061_L067_annot_clean_HARM_2602_mdat.csv'
 sgs_inhouse_umap_fp = 'Results/03_scRNAseq_annotation/SGS_inhouse_annot_clean_2601_mdat.csv'
-mds_umap_fp = 'Results/03_scRNAseq_annotation/MDS_L061_L067_annot_clean_2601_mdat.csv'
+integrated_sgs_inhouse_umap_fp = 'Results/03_scRNAseq_annotation/SGS_inhouse_annot_clean_HARM_2602_mdat.csv'
+mds_umap_fp = 'Results/03_scRNAseq_annotation/MDS_L061_L067_annot_clean_2602_mdat.csv'
 
 plot_umap = function(plotDir,
                      dataset = c('sgs_inhouse','mds','combined'), 
-                     colour_by_variables = c('annot','broad_annot','donorID','setbp1_status'), 
+                     colour_by_variables = c('annot','broad_annot','lineage','donorID','setbp1_status'), 
                      is_integrated=FALSE,
                      show_legend = FALSE,
                      alpha=1,
                      down_sample_fraction = 1,
                      width = 4.1,
                      height = 3.7){
+  checkmate::qassert(plotDir,'S1')
+  checkmate::qassert(colour_by_variables,'S+')
+  checkmate::qassert(is_integrated,'B1')
+  checkmate::qassert(show_legend,'B1')
+  checkmate::qassert(alpha,'N1[0,1]')
+  checkmate::qassert(down_sample_fraction,'N1[0,1]')
+  checkmate::qassert(width,'N1')
+  checkmate::qassert(height,'N1')
+  dataset <- match.arg(dataset)
+  
   mdat_fp = switch(dataset,
-                   'sgs_inhouse' = sgs_inhouse_umap_fp,
+                   'sgs_inhouse' = ifelse(is_integrated,integrated_sgs_inhouse_umap_fp,sgs_inhouse_umap_fp),
                    'mds' = mds_umap_fp,
                    'combined' = integrated_umap_fp)
+  selected_columns = c('cellID','annot','final_annot_broad','broad_annot','wgs_id','setbp1_mutation_status','UMAP_1','UMAP_2')
+  
   mdat = read.csv(mdat_fp,row.names = 1) %>%
-    dplyr::select(c('cellID','annot','broad_annot','wgs_id','setbp1_mutation_status','UMAP_1','UMAP_2')) %>% 
+    dplyr::select(selected_columns) %>% 
     dplyr::mutate(donorID = substr(wgs_id,1,nchar(wgs_id)-1))
+  if(dataset == 'combined'){
+    mdat$final_annot_broad[mdat$final_annot_broad %in% c('CD16+ Mono','Mono/Mac',
+                                                         'DC1','DC2','pDC')] = "Myeloid"
+    mdat$final_annot_broad[mdat$final_annot_broad %in% c('NK_T')] = "T cells"
+  }
   if(down_sample_fraction < 1 ){
     dd = mdat[sample(1:nrow(mdat),nrow(mdat)*down_sample_fraction),]
   }else{
@@ -101,13 +145,21 @@ plot_umap = function(plotDir,
   }
   
   
+  
   for(colour_by in colour_by_variables){
-    
+    if(colour_by == 'annot' & dataset == 'combined'){
+      dd2 = rbind(dd[!dd$annot %in% c('nkt_cells','ilc'),],
+                  dd[dd$annot %in% c('nkt_cells','ilc'),]
+                 )
+      checkmate::assert_true(nrow(dd2) == nrow(dd))
+      dd = dd2
+    }
     cols = switch(colour_by,
                   'annot' = ANNOT_COLS[as.character(dd$annot)],
-                  'broad_annot' = BROAD_ANNOT_COLS[as.character(dd$broad_annot)],
+                  'broad_annot' = ANNOT_COLS_BROAD[as.character(dd$final_annot_broad)],
+                  'lineage' = LINEAGE_COLS[as.character(dd$broad_annot)],
                   'donorID' = donorID_col[as.character(dd$donorID)],
-                  'setbp1_status' = SETBP1_mutation_col[as.character(dd$se)])
+                  'setbp1_status' = SETBP1_mutation_col[as.character(dd$setbp1_mutation_status)])
     
     cols = colAlpha(cols,rep(alpha,length(cols)))
     plot_prefix = ifelse(is_integrated, paste0(dataset,'_integrated_UMAP_',colour_by),
@@ -143,9 +195,9 @@ plot_umap = function(plotDir,
 
 plot_umap(plotDir=plotDir,
           dataset = 'sgs_inhouse', 
-          colour_by_variables = c('annot','broad_annot','donorID','setbp1_status'), 
+          colour_by_variables = c('annot','broad_annot','lineage','donorID','setbp1_status'), 
           #colour_by_variables = c('broad_annot'), 
-          is_integrated=FALSE,
+          is_integrated=TRUE,
           show_legend = FALSE,
           alpha=0.7,
           down_sample_fraction = 1,
@@ -163,9 +215,9 @@ plot_umap(plotDir=plotDir,
           height = 3.7)
 
 plot_umap(plotDir=plotDir,
-          dataset = c('combined'), 
-          #colour_by_variables = c('annot','broad_annot','donorID','setbp1_status'), 
-          colour_by_variables = c('setbp1_status'), 
+          dataset = 'combined', 
+          colour_by_variables = c('annot','broad_annot','lineage','donorID','setbp1_status'), 
+          #colour_by_variables = c('broad_annot'), 
           is_integrated=TRUE,
           show_legend = FALSE,
           alpha=0.5,
@@ -233,7 +285,131 @@ plotFun_annot_seurat = function(noFrame=FALSE,noPlot=FALSE){
   
   
   
+## DotPlot ---------------------------------------------------------------------
+markers = (c('PTPRC', # Immune cells
+             # MDS
+             'SETBP1','CD34','HMGA2','MEG3','RBPMS', 
+             'MLLT3','PRSS57', 'GATA2','GATA1',
+             # Megakaryocyte
+             'ITGA2B', 'PPBP','PF4',
+             # Monocytes
+             'CD14',"LYZ","S100A8","FCN1",'CD68','HMOX1','ITGAX',#Macrophages
+             'FCGR3A',# Monocytes
+             
+             
+             'IRF8',	#DC.precursor
+             'FLT3', #DCs
+             'CLEC9A',#DC1
+             'CLEC10A','CD1C', # DC2 
+             'IL3RA', # DC2
+             'CLEC4C', #pDC
+             
+             # B-cells
+             'MS4A1',
+             'CD79A','CD19',"IGHD","IL4R",# naive_b
+             'TCL1A',# naive_b_cell = CD19+ CD27-
+             # memory_b_cell = CD19+ and CD27 + 
+             "IGHA1",# pre-b-cells
+             
+             "JCHAIN",'CD27', # Plasma cells
+             
+             'CD3D','CD8A', #Early.lymphoid_T.lymphocyte
+             #'TRDV2','TRGV9', # gamma delta T-cell
+             'PRF1','GZMA', # effector T cells
+             "SLC4A10", "TRAV1-2", #MAIT
+             "TRDV2", "TRGV9",  # Gamma-delta
+             'ZBTB16','NKG7','KLRD1', #NK
+             'IL7R',"LTB","KIT" # ILC
+             
+))
+
+combined_srat_fp = 'Results/03_scRNAseq_annotation/SGS_inhouse_MDS_L061_L067_annot_clean_HARM_2601.RDS'
+srat = combined_srat_clean
+supFig1_SETBP1.MDS_dotPlot = function(){
+  library(viridis)
   
+  broad_annot_level = c('MDS','Ery','MegK',
+                  'Mono/Mac','CD16+ Mono','DC1','DC2','pDC',
+                  'B cells','Plasma cells','T cells','NK cells')
+  detailed_annot_level = c('mds_PD61858','mds_PD61857','megakaryocyte',
+                           'classical_monocytes','non_classical_monocytes',
+                           'dc1','dc2','pdc','naive_b','memory_b','plasma_b',
+                           't_cd4','t_cd8','mait_cells','gd_t_cells',
+                           'nkt_cells','nk','ilc')
+  # Corresponding paper-ready names
+  paper_names <- c(
+    "MDS_PD61858","MDS_PD61857", "Megakaryocyte",
+    "Classical Mono", "Non-Classical Mono",
+    "DC1", "DC2", "pDC", "Naive B", "Memory B", "Plasma B",
+    "CD4 T", "CD8 T", "MAIT", "γδ T",
+    "NKT", "NK", "ILC"
+  )
+  
+  # Create a mapping table
+  cell_type_mapping <- data.frame(
+    code_style = detailed_annot_level,
+    paper_style = paper_names,
+    stringsAsFactors = FALSE
+  )
+  
+  # Import the seurat object
+  srat = readRDS(combined_srat_fp)
+  srat$annot[srat$annot == 'mds'] = paste0('mds_',srat$donorID[srat$annot == 'mds'])
+  
+  checkmate::assert_true(all(srat$final_annot_broad %in% broad_annot_level))
+  checkmate::assert_true(all(srat$annot %in% detailed_annot_level))
+  srat$final_annot_broad = factor(srat$final_annot_broad,broad_annot_level)
+  srat$annot = factor(srat$annot,detailed_annot_level)
+  srat$annot2 = cell_type_mapping$paper_style[match(srat$annot,cell_type_mapping$code_style)]
+  srat$annot2 = factor(srat$annot2,paper_names)
+  
+  direction = 'vertical'
+  
+  if(direction == 'vertical'){
+    genes = rev(markers)
+  }else{
+    genes = markers
+  }
+  
+  plotFun = function(noFrame=FALSE,noPlot=FALSE){
+    Idents(srat) = srat$annot2
+    p = DotPlot(srat,#idents = unique(srat$finalAnn_broad),
+                #cols = c("#EBFFE5", "#244b05"),
+                #cols = c(colAlpha('#F1F5FA',1),'#425580'),
+                cols = c(colAlpha(grey(0.95),0.8),'black'),
+                #cols = c(grey(0.99), grey(0.2)),
+                #group.by = 'seurat_clusters',
+                #idents = unique(srat$finalAnn[srat$finalAnn != 'others']),
+                features = genes)+RotatedAxis() 
+    
+    
+    if(direction == 'vertical'){
+      p = p + coord_flip() + 
+        scale_y_discrete(position = "right")+
+        theme(axis.text.x = element_text(size=9,angle = 90,vjust = 1,hjust = 0),
+              axis.text.y = element_text(size=9,face = "italic"),
+              legend.title = element_text(size=8),
+              legend.text = element_text(size=8),
+              legend.position = 'top') + xlab('') + ylab('')
+    }else if(direction == 'horizontal'){
+      p = p +
+        theme(axis.text.y = element_text(size=15),
+              axis.text.x = element_text(size=8,angle = 90,vjust = 0.5,hjust = 1),
+              legend.title = element_text(size=8),
+              legend.text = element_text(size=8),
+              legend.position = 'top') + xlab('') + ylab('')
+    }
+    print(p)
+  }
+  
+  if(direction == 'vertical'){
+    saveFig(file.path(plotDir,'SupFig1_SETBP1.MDS_Celltype_DotPlot_vertical'),plotFun,width = 4.7,height =11,res = 500)  
+  }else{
+    saveFig(file.path(plotDir,'SupFig1_SETBP1.MDS_Celltype_DotPlot_horizontal'),plotFun,width = 9.5,height = 4.6,res = 500)  
+  }
+  
+}
+
 
 # R1: NK-kB pathways in lymphoid lineage ---------------------------------------
 library(enrichR)

@@ -796,6 +796,7 @@ markers = (c('PTPRC','SERPINB1', # Immune cells
             #'TRDV2','TRGV9', # gamma delta T-cell
             'PRF1','GZMA', # effector T cells
             'ZBTB16','NKG7','KLRD1' #NK
+            
 ))
 
 setbp1_srat_fp = '~/lustre_mt22/SETBP1/Results/x_published_scRNAseq_preprocessing/SETBP1_Wang21_scRNAseq.only_noUnknowns_2502.RDS'

@@ -557,6 +557,7 @@ CELLTYPE_HIERARCHY <- tibble::tribble(
   "cytotoxic_t_cells", "CD8 T","T",
   "helper_t_cells", "CD4 T","T",
   "tcm_naive_helper_t_cells", "Naive / Central Memory CD4 T", "T",
+  "nkt_cells",'nkt_cells','T',
 
   "tem_temra_cytotoxic_t_cells", "Effector / Memory CD8 T", "T",
   "tem_trm_cytotoxic_t_cells", "Effector / Memory CD8 T", "T",
@@ -1422,9 +1423,6 @@ DotPlot(sgs_pbmc,group.by = 'annot',features = top_markers)+
 saveRDS(sgs_pbmc,'Results/03_scRNAseq_annotation/SGS_inhouse_Wang21_annot_2601.RDS')
 
 ### SGS_inhouse ----------------------------------------------------------------
-# if need to remove more cells, can do dc2 cluster 12 - doublets
-# nk cluster 8 and 9 doublets
-
 sgs_inhouse_annot = standard_clustering(sgs_inhouse_annot,runHarmony = T,harmonyVar = 'batch')
 
 cols_to_add = setdiff(colnames(sgs_pbmc@meta.data),colnames(sgs_inhouse_annot@meta.data))
@@ -1479,6 +1477,8 @@ sgs_inhouse_annot$annot[sgs_inhouse_annot$annot %in% c('unknown','doublets','cyc
                           sgs_inhouse_annot$seurat_clusters %in% c(13,32)] = 'megakaryocyte'
 sgs_inhouse_annot$annot[sgs_inhouse_annot$annot %in% c('unknown','doublets','cycling_doublets') & 
                           sgs_inhouse_annot$seurat_clusters %in% c(30)] = 'nk'
+sgs_inhouse_annot$annot[sgs_inhouse_annot$annot %in% c('ilc') & 
+                          sgs_inhouse_annot$celltypist_label %in% c('cd16_nk_cells')] = 'nk'
 
 cells = sgs_inhouse_annot$cellID[sgs_inhouse_annot$annot %in% c('megakaryocyte') &
                                    sgs_inhouse_annot$seurat_clusters %in% c(32) &
@@ -1503,6 +1503,7 @@ sgs_inhouse_annot_clean = RunUMAP(sgs_inhouse_annot_clean, dims=seq(70))
 DimPlot(sgs_inhouse_annot_clean,group.by = 'donor_id',label = T,repel = T,
         label.box = T,cols = col25)+ NoLegend()
 
+
 checkmate::assert_true(all(sgs_inhouse_annot_clean$annot %in% CELLTYPE_HIERARCHY$celltype_lvl2_snakecase))
 unique(sgs_inhouse_annot_clean$annot[!sgs_inhouse_annot_clean$annot %in% CELLTYPE_HIERARCHY$celltype_lvl2_snakecase])
 
@@ -1515,6 +1516,14 @@ sgs_inhouse_annot_clean_mdat = cbind(sgs_inhouse_annot_clean@meta.data[],
 
 saveRDS(sgs_inhouse_annot_clean,'Results/03_scRNAseq_annotation/SGS_inhouse_annot_clean_2601.RDS')
 write.csv(sgs_inhouse_annot_clean_mdat,'Results/03_scRNAseq_annotation/SGS_inhouse_annot_clean_2601_mdat.csv')
+
+sgs_inhouse_annot_clean$final_annot_broad = combined_srat_clean$final_annot_broad[match(sgs_inhouse_annot_clean$cellID,combined_srat_clean$cellID)]
+sgs_inhouse_annot_clean$broad_annot = combined_srat_clean$broad_annot[match(sgs_inhouse_annot_clean$cellID,combined_srat_clean$cellID)]
+sgs_inhouse_annot_clean@meta.data = sgs_inhouse_annot_clean@meta.data[,colnames(sgs_inhouse_annot_clean@meta.data) != 'final_annot']
+sgs_inhouse_annot_clean = standard_clustering(sgs_inhouse_annot_clean,runHarmony = T,harmonyVar = 'batch')
+sgs_inhouse_annot_clean_mdat = cbind(sgs_inhouse_annot_clean@meta.data[,!colnames(sgs_inhouse_annot_clean@meta.data) %in% c('UMAP_1','UMAP_2')],
+                                     sgs_inhouse_annot_clean@reductions$umap@cell.embeddings)
+write.csv(sgs_inhouse_annot_clean_mdat,'Results/03_scRNAseq_annotation/SGS_inhouse_annot_clean_HARM_2602_mdat.csv')
 
 ### Leukaemia ------------------------------------------------------------------
 table(leuk_srat$celltype_lvl2_snakecase)
@@ -1563,6 +1572,8 @@ leuk_srat$annot[leuk_srat$annot == 'doublets' & leuk_srat$seurat_clusters %in% c
 leuk_srat$annot[leuk_srat$annot == 'doublets' & leuk_srat$seurat_clusters %in% c(12)] = 'memory_b'
 leuk_srat$annot[leuk_srat$annot == 'doublets' & leuk_srat$seurat_clusters %in% c(13,14)] = 'naive_b'
 leuk_srat$annot[leuk_srat$annot == 'doublets' & leuk_srat$seurat_clusters %in% c(10)] = 'ilc'
+leuk_srat$annot[leuk_srat$annot %in% c('ilc') & 
+                  leuk_srat$celltypist_label %in% c('cd16_nk_cells')] = 'nk'
 
 
 checkmate::assert_true(all(leuk_srat$annot %in% CELLTYPE_HIERARCHY$celltype_lvl2_snakecase))
@@ -1599,6 +1610,13 @@ leuk_srat_clean_mdat = cbind(leuk_srat_clean@meta.data,
 saveRDS(leuk_srat_clean,'Results/03_scRNAseq_annotation/MDS_L061_L067_annot_clean_2601.RDS')
 write.csv(leuk_srat_clean_mdat,'Results/03_scRNAseq_annotation/MDS_L061_L067_annot_clean_2601_mdat.csv')
 
+leuk_srat_clean$final_annot_broad = combined_srat_clean$final_annot_broad[match(leuk_srat_clean$cellID,combined_srat_clean$cellID)]
+leuk_srat_clean$broad_annot = combined_srat_clean$broad_annot[match(leuk_srat_clean$cellID,combined_srat_clean$cellID)]
+leuk_srat_clean = standard_clustering(leuk_srat_clean,runHarmony = T,harmonyVar = 'batch')
+leuk_srat_clean_mdat = cbind(leuk_srat_clean@meta.data[,!colnames(leuk_srat_clean@meta.data) %in% c('UMAP_1','UMAP_2')],
+                             leuk_srat_clean@reductions$umap@cell.embeddings)
+write.csv(leuk_srat_clean_mdat,'Results/03_scRNAseq_annotation/MDS_L061_L067_annot_clean_2602_mdat.csv')
+
 ### All the data together ------------------------------------------------------
 combined_srat_clean = merge_seurat_objects(sgs_inhouse_annot_clean,leuk_srat_clean,
                                      keepAllGenes = F,genomeVersions = c('v38','v38'))
@@ -1626,7 +1644,102 @@ combined_srat_clean_mdat = cbind(combined_srat_clean@meta.data,
 saveRDS(combined_srat_clean,'Results/03_scRNAseq_annotation/SGS_inhouse_MDS_L061_L067_annot_clean_HARM_2601.RDS')
 write.csv(combined_srat_clean_mdat,'Results/03_scRNAseq_annotation/SGS_inhouse_MDS_L061_L067_annot_clean_HARM_2601_mdat.csv')
 
+# Final annot broad ------------------------------------------------------------
+combined_srat_clean$annot_2601_curated = as.character(combined_srat_clean$annot)
+nkt_cells = WhichCells(combined_srat_clean,expression = ((CD3D > 0)& (TRGV9 == 0 & TRDV2 == 0)&
+                                                           CD8A < 1.5 &
+                                                           NKG7 > 0 & KLRD1 > 0 ))
+table(combined_srat_clean$seurat_clusters[combined_srat_clean$cellID %in% nkt_cells])
+table(combined_srat_clean$annot[combined_srat_clean$cellID %in% nkt_cells])
+DimPlot(combined_srat_clean,group.by = 'seurat_clusters',label = T,repel = T,label.box = T)+NoLegend()
+nkt_cells = combined_srat_clean$cellID[combined_srat_clean$cellID %in% nkt_cells &
+                                         combined_srat_clean$seurat_clusters %in% c(7,37,39,40,41) ]
+DimPlot(combined_srat_clean,cells.highlight = nkt_cells)
 
+combined_srat_clean@meta.data = combined_srat_clean@meta.data %>% 
+  dplyr::mutate(annot = dplyr::case_when(
+    cellID %in% nkt_cells ~ 'nkt_cells',
+    annot == 'macrophages' & seurat_clusters == 22 ~ 'dc2',
+    annot == 'macrophages' & seurat_clusters == 14 ~ 'non_classical_monocytes',
+    annot == 'macrophages' & seurat_clusters %in% c(1,18,25,33) ~ 'classical_monocytes',
+    .default = annot
+  ),
+  final_annot_broad = dplyr::case_when(
+    cellID %in% nkt_cells ~ 'T cells',
+    annot == 'non_classical_monocytes' ~ 'CD16+ Mono',
+    annot %in% c('classical_monocytes','macrophages') ~ 'Mono/Mac',
+    annot == 'dc1' ~ 'DC1',
+    annot == 'dc2' ~ 'DC2',
+    annot == 'pdc' ~ 'pDC',
+    annot == 'megakaryocyte' ~ 'MegK',
+    annot == 'mds' ~ 'MDS',
+    annot %in% c('naive_b','memory_b') ~ 'B cells',
+    annot == 'plasma_b' ~ 'Plasma cells',
+    annot %in% c('ilc','nk') ~ 'NK cells',
+    annot %in% c('gd_t_cells','mait_cells','t_cd4','t_cd8') ~ 'T cells',
+    .default = annot
+  )
+)
+
+table(combined_srat_clean$annot)
+annot_level = c('MDS','Ery','MegK',
+                'Mono/Mac','CD16+ Mono','DC1','DC2','pDC',
+                'B cells','Plasma cells','T cells','NK cells')
+checkmate::assert_true(all(combined_srat_clean$final_annot_broad %in% annot_level))
+
+checkmate::assert_true(all(combined_srat_clean$annot %in% CELLTYPE_HIERARCHY$celltype_lvl2_snakecase))
+unique(combined_srat_clean$annot[!combined_srat_clean$annot %in% CELLTYPE_HIERARCHY$celltype_lvl2_snakecase])
+
+combined_srat_clean$broad_annot = CELLTYPE_HIERARCHY$lineage[match(combined_srat_clean$annot,CELLTYPE_HIERARCHY$celltype_lvl2_snakecase)]
+checkmate::assert_true(all(!is.na(combined_srat_clean$broad_annot)))
+
+
+srat = combined_srat_clean
+table(srat$seurat_clusters[srat$annot == 'macrophages'])
+srat$annot[srat$annot == 'macrophages'] = paste0('macrophages_',as.character(srat$seurat_clusters[srat$annot == 'macrophages']))
+DimPlot(srat,cells.highlight = srat$cellID[srat$seurat_clusters == 25 & 
+                                             srat$annot == 'macrophages'])
+srat$final_annot_broad = factor(srat$final_annot_broad,annot_level)
+table(is.na(srat$final_annot_broad))
+Idents(srat) = srat$final_annot_broad
+Idents(srat) = srat$annot
+ilc_nk_markers <- c(
+  # Helper ILC identity
+  "IL7R", "TCF7", "LTB",
+  "GATA3", "RORC",
+  "IL1RL1", "KIT",
+  "IL5", "IL13", "IL22",
+  
+  # NK cytotoxic program
+  "NKG7", "GNLY", "PRF1",
+  "GZMB", "GZMA", "CTSW",
+  "KLRD1", "FCGR3A",
+  "EOMES"
+)
+FeaturePlot(srat,c("IL7R", "TCF7", "LTB",
+                   "GATA3", "RORC",
+                   "IL1RL1", "KIT",
+                   "IL5", "IL13", "IL22"))
+table(srat$seurat_clusters[srat$annot == 'ilc'])
+DimPlot(srat,group.by = 'seurat_clusters',label = T,repel = T,label.box = T)+NoLegend()
+DimPlot(srat,cells.highlight = srat$cellID[srat$annot == 'ilc' & 
+                                             srat$celltypist_label == 'nk_cells'])
+srat$annot[srat$annot == 'ilc'] = paste0(srat$annot[srat$annot == 'ilc'],'::',
+                                         as.character(srat$celltypist_label[srat$annot == 'ilc']))
+DotPlot(srat,group.by = 'annot',
+            cols = c(colAlpha(grey(0.95),0.8),'black'),
+            features = ilc_nk_markers)+RotatedAxis() + 
+  coord_flip() + 
+  scale_y_discrete(position = "right")+
+  theme(axis.text.x = element_text(size=9,angle = 90,vjust = 0.5,hjust = 0),
+        axis.text.y = element_text(size=9),
+        legend.title = element_text(size=8),
+        legend.text = element_text(size=8),
+        legend.position = 'top') + xlab('') + ylab('')
+
+combined_srat_clean_mdat = cbind(combined_srat_clean@meta.data,
+                                 combined_srat_clean@reductions$umap@cell.embeddings)
+write.csv(combined_srat_clean_mdat,'Results/03_scRNAseq_annotation/SGS_inhouse_MDS_L061_L067_annot_clean_HARM_2602_mdat.csv')
 
 # OLD --------------------------------------------------------------------------
 # outDir = 'Results/05_combined_scRNAseq_annotation'
