@@ -1307,6 +1307,7 @@ wang21@meta.data = cbind(wang21@meta.data,annot[match(wang21$cellID,annot$cellID
 # Add to final annotation
 finalised_annot[['Wang21']] = annot
 
+
 write.csv(annot,'Results/03_scRNAseq_annotation/Wang21_finalised_annotation.csv')
 
 final_annot_df = do.call(rbind,finalised_annot)
@@ -1517,12 +1518,20 @@ sgs_inhouse_annot_clean_mdat = cbind(sgs_inhouse_annot_clean@meta.data[],
 saveRDS(sgs_inhouse_annot_clean,'Results/03_scRNAseq_annotation/SGS_inhouse_annot_clean_2601.RDS')
 write.csv(sgs_inhouse_annot_clean_mdat,'Results/03_scRNAseq_annotation/SGS_inhouse_annot_clean_2601_mdat.csv')
 
+sgs_inhouse_annot_clean$annot_2601_curated = as.character(sgs_inhouse_annot_clean$annot)
+sgs_inhouse_annot_clean$annot = combined_srat_clean$annot[match(sgs_inhouse_annot_clean$cellID,combined_srat_clean$cellID)]
 sgs_inhouse_annot_clean$final_annot_broad = combined_srat_clean$final_annot_broad[match(sgs_inhouse_annot_clean$cellID,combined_srat_clean$cellID)]
 sgs_inhouse_annot_clean$broad_annot = combined_srat_clean$broad_annot[match(sgs_inhouse_annot_clean$cellID,combined_srat_clean$cellID)]
 sgs_inhouse_annot_clean@meta.data = sgs_inhouse_annot_clean@meta.data[,colnames(sgs_inhouse_annot_clean@meta.data) != 'final_annot']
 sgs_inhouse_annot_clean = standard_clustering(sgs_inhouse_annot_clean,runHarmony = T,harmonyVar = 'batch')
+
+no_integration_umap_coords = read.csv('Results/03_scRNAseq_annotation/SGS_inhouse_annot_clean_2601_mdat.csv')
+
 sgs_inhouse_annot_clean_mdat = cbind(sgs_inhouse_annot_clean@meta.data[,!colnames(sgs_inhouse_annot_clean@meta.data) %in% c('UMAP_1','UMAP_2')],
                                      sgs_inhouse_annot_clean@reductions$umap@cell.embeddings)
+sgs_inhouse_annot_clean_mdat$UMAP_1_nointegration = no_integration_umap_coords$UMAP_1[match(sgs_inhouse_annot_clean_mdat$cellID,no_integration_umap_coords$cellID)]
+sgs_inhouse_annot_clean_mdat$UMAP_2_nointegration = no_integration_umap_coords$UMAP_2[match(sgs_inhouse_annot_clean_mdat$cellID,no_integration_umap_coords$cellID)]
+
 write.csv(sgs_inhouse_annot_clean_mdat,'Results/03_scRNAseq_annotation/SGS_inhouse_annot_clean_HARM_2602_mdat.csv')
 
 ### Leukaemia ------------------------------------------------------------------

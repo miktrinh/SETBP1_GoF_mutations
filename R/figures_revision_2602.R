@@ -101,8 +101,7 @@ umap_theme <- theme_void() +
 
 # Combined Integrated UMAP -----------------------------------------------------
 integrated_umap_fp = 'Results/03_scRNAseq_annotation/SGS_inhouse_MDS_L061_L067_annot_clean_HARM_2602_mdat.csv'
-sgs_inhouse_umap_fp = 'Results/03_scRNAseq_annotation/SGS_inhouse_annot_clean_2601_mdat.csv'
-integrated_sgs_inhouse_umap_fp = 'Results/03_scRNAseq_annotation/SGS_inhouse_annot_clean_HARM_2602_mdat.csv'
+sgs_inhouse_umap_fp = 'Results/03_scRNAseq_annotation/SGS_inhouse_annot_clean_HARM_2602_mdat.csv'
 mds_umap_fp = 'Results/03_scRNAseq_annotation/MDS_L061_L067_annot_clean_2602_mdat.csv'
 
 plot_umap = function(plotDir,
@@ -125,14 +124,21 @@ plot_umap = function(plotDir,
   dataset <- match.arg(dataset)
   
   mdat_fp = switch(dataset,
-                   'sgs_inhouse' = ifelse(is_integrated,integrated_sgs_inhouse_umap_fp,sgs_inhouse_umap_fp),
+                   'sgs_inhouse' = sgs_inhouse_umap_fp,
                    'mds' = mds_umap_fp,
                    'combined' = integrated_umap_fp)
   selected_columns = c('cellID','annot','final_annot_broad','broad_annot','wgs_id','setbp1_mutation_status','UMAP_1','UMAP_2')
-  
+  if(dataset == 'sgs_inhouse' & !is_integrated){
+    selected_columns = c(selected_columns[!selected_columns %in% c('UMAP_1','UMAP_2')],'UMAP_1_nointegration','UMAP_2_nointegration')
+  }
   mdat = read.csv(mdat_fp,row.names = 1) %>%
-    dplyr::select(selected_columns) %>% 
+    dplyr::select(all_of(selected_columns)) %>% 
     dplyr::mutate(donorID = substr(wgs_id,1,nchar(wgs_id)-1))
+  if(all(c('UMAP_1_nointegration','UMAP_2_nointegration') %in% colnames(mdat))){
+    mdat = mdat %>% 
+      dplyr::rename('UMAP_1'='UMAP_1_nointegration',
+                    'UMAP_2'='UMAP_2_nointegration')
+  }
   if(dataset == 'combined'){
     mdat$final_annot_broad[mdat$final_annot_broad %in% c('CD16+ Mono','Mono/Mac',
                                                          'DC1','DC2','pDC')] = "Myeloid"
@@ -197,7 +203,7 @@ plot_umap(plotDir=plotDir,
           dataset = 'sgs_inhouse', 
           colour_by_variables = c('annot','broad_annot','lineage','donorID','setbp1_status'), 
           #colour_by_variables = c('broad_annot'), 
-          is_integrated=TRUE,
+          is_integrated=FALSE,
           show_legend = FALSE,
           alpha=0.7,
           down_sample_fraction = 1,
@@ -283,6 +289,41 @@ plotFun_annot_seurat = function(noFrame=FALSE,noPlot=FALSE){
   saveFig(file.path(plotDir,'integrated_UMAP_disease_seuratstyle'),plotFun_disease_seurat,
           rawData=mdat,width = 7,height = 4.5,res = 500)
   
+  
+## Update Supplementary Table S1 -----------------------------------------------
+tableS1 = function(){
+  # Import mdat dataset
+  mdat = read.csv(integrated_umap_fp,row.names = 1) %>% 
+    dplyr::mutate(setbp1_mutation_status = 
+                    ifelse(donor_id == 'L061','Somatic hotspot SETBP1 mutation',
+                           setbp1_mutation_status))
+  wang21 = read.csv(wang21_mdat_fp,row.names = 1) %>% 
+    dplyr::mutate(source = 'Wang et al., 2021 (GSE168732)',
+                  donor_id = gsub('_.*$','',wang21$cellID),
+                  sex = ifelse(donor_id == 'GSM5160432', 'male','female'),
+                  setbp1_mutation_status = 'Wild type SETBP1',
+                  tissue = 'PBMC',
+                  orig.ident = donor_id)
+  
+  mdat = rbind(mdat[,intersect(colnames(wang21),colnames(mdat))],wang21[,intersect(colnames(wang21),colnames(mdat))])
+  
+  s1 = readxl::read_excel('~/SETBP1_GoF_mutations/Results/Supplementary Table 1.xlsx',skip = 1)
+  
+  # Number of cells per donorID
+  dataset = as.data.frame(table(mdat$source,mdat$donor_id,mdat$setbp1_mutation_status,
+                                mdat$tissue,mdat$sex,mdat$orig.ident))
+  colnames(dataset) = c('Source','Donor_ID','SETBP1_mutation_status','Tissue','Sex','Sample_ID','nCell')
+  dataset = dataset[dataset$nCell > 0,]
+  dataset$Donor_ID = factor(dataset$Donor_ID,c('GOSH084','BJ113',
+                                               'BJ111','BJ112','BJ9','L061','L067',
+                                               'BJ114','GSM5160432','GSM5160434','GSM5160435'))
+  dataset = dataset[order(dataset$Donor_ID),]
+  dataset$Sample_ID_2 = sub('SB\\.','',dataset$Sample_ID)
+  checkmate::assert_true(nrow(dataset) == nrow(s1))
+  checkmate::assert_true(all(dataset$Sample_ID_2 %in% s1$`Sample ID`))
+
+  s1$nCell_updated = dataset$nCell[match(dataset$Sample_ID_2,s1$`Sample ID`)]
+  write.csv(s1,file.path(plotDir,paste0('TableS1_dataset_nCellBy10XSample.csv')),row.names = F)
   
   
 ## DotPlot ---------------------------------------------------------------------
@@ -390,7 +431,7 @@ supFig1_SETBP1.MDS_dotPlot = function(){
               axis.text.y = element_text(size=9,face = "italic"),
               legend.title = element_text(size=8),
               legend.text = element_text(size=8),
-              legend.position = 'top') + xlab('') + ylab('')
+              legend.position = 'left') + xlab('') + ylab('')
     }else if(direction == 'horizontal'){
       p = p +
         theme(axis.text.y = element_text(size=15),
@@ -403,12 +444,313 @@ supFig1_SETBP1.MDS_dotPlot = function(){
   }
   
   if(direction == 'vertical'){
-    saveFig(file.path(plotDir,'SupFig1_SETBP1.MDS_Celltype_DotPlot_vertical'),plotFun,width = 4.7,height =11,res = 500)  
+    saveFig(file.path(plotDir,'SupFig1_SETBP1.MDS_Celltype_DotPlot_vertical'),plotFun,width = 5.7,height =11,res = 500)  
   }else{
     saveFig(file.path(plotDir,'SupFig1_SETBP1.MDS_Celltype_DotPlot_horizontal'),plotFun,width = 9.5,height = 4.6,res = 500)  
   }
   
 }
+
+# Lineage proportion -----------------------------------------------------------
+## Lineage proportion of cells
+reference_wbc_paed = read_excel('Data/Magierowicz_etal_2019_WBCreference.xlsx',sheet = 2)
+reference_wbc_adult = read_excel('Data/Magierowicz_etal_2019_WBCreference.xlsx',sheet = 1)
+wang21_mdat_fp = 'Results/03_scRNAseq_annotation/Wang21_finalised_annotation.csv'
+
+# Deal with the reference
+ref_map <- tibble::tribble(
+  ~Population,      ~broadLineage,
+  ## B cells
+  "LyB",            "B_cells",
+  
+  ## NK + T
+  "LyT/NK",         "NK.T",
+  "LyT/NKa",        "NK.T",
+  "LyTcNK",         "NK.T",
+  "LyTcNKa",        "NK.T",
+  "LyTnc",          "NK.T",
+  "LyTnca",         "NK.T",
+  
+  ## Myeloid
+  "Neutrophils",    "Myeloid",
+  "Monocytes",      "Myeloid",
+  "Imm Grans",      "Myeloid",
+  "CD16+",          "Myeloid",
+  "CD16−",          "Myeloid",
+  "Eosinophils",    "Myeloid",
+  "Basophils",      "Myeloid"
+)
+
+ref_adult_long <- reference_wbc_adult %>%
+  dplyr::filter(Population != 'Total' & !grepl('Blast',Lineage)) %>% 
+  mutate(count = gsub(' \\(.*$','',`count (109/L)`)) %>% 
+  separate(
+    count,
+    into = c("ref_low", "ref_high"),
+    sep = "-",
+    convert = TRUE
+  ) %>%
+  mutate(
+    age_group = "20-69"
+  ) %>%
+  dplyr::select(Lineage, Population, age_group, ref_low, ref_high) %>% 
+  mutate(ref_mean = (ref_low + ref_high)/2,
+         total_ref_mean = sum(ref_mean))
+
+total_mean_wbc <- sum(ref_adult_long$ref_mean)
+
+ref_paed_long <- reference_wbc_paed %>%
+  pivot_longer(
+    cols = starts_with("Age"),
+    names_to = "age_group",
+    values_to = "range"
+  ) %>%
+  mutate(
+    age_group = case_when(
+      age_group == "Age 0-5 y"   ~ "1-3",
+      age_group == "Age 6-11 y"  ~ "3-10",
+      age_group == "Age 12-19 y" ~ "12-19",
+      age_group == "Age >69 y"   ~ ">69"
+    )
+  ) %>%
+  dplyr::filter(Population != 'Total' & !grepl('Blast',Lineage)) %>% 
+  separate(
+    range,
+    into = c("ref_low", "ref_high"),
+    sep = "-",
+    convert = TRUE
+  ) %>%
+  dplyr::select(Lineage, Population, age_group, ref_low, ref_high) %>% 
+  mutate(ref_mean = (ref_low + ref_high)/2) %>% 
+  group_by(age_group) %>% 
+  mutate(total_ref_mean = sum(ref_mean))
+
+reference_long <- bind_rows(ref_paed_long, ref_adult_long)
+reference_mapped <- reference_long %>%
+  inner_join(ref_map, by = "Population")
+
+reference_broad <- reference_mapped %>%
+  group_by(broadLineage, age_group, total_ref_mean) %>%
+  summarise(
+    ref_low  = sum(ref_low,  na.rm = TRUE),
+    ref_high = sum(ref_high, na.rm = TRUE)
+  ) %>% mutate(
+    ref_low_frac  = ref_low  / total_ref_mean,
+    ref_high_frac = ref_high / total_ref_mean
+  ) %>%
+  ungroup()
+
+
+
+
+mdat = read.csv(integrated_umap_fp,row.names = 1)
+wang21 = read.csv(wang21_mdat_fp,row.names = 1)
+
+
+
+mdat$broad_annot
+dd = mdat %>% group_by(donor_id,setbp1_mutation_status,broad_annot) %>% 
+  summarise(nCell = n()) %>% 
+  group_by(donor_id,setbp1_mutation_status) %>% 
+  mutate(total_nCell = sum(nCell),
+         disease = dplyr::case_when(
+           donor_id == 'BJ114','normal (PD66164)'
+         )) 
+dd$frac = dd$nCell/dd$total_nCell
+
+SETBP1_mutation_col = c('wild_type' = colAlpha(grey(0.6),1),
+                        'hotspot' = colAlpha('#cc5d0f',1),
+                        'non_hotspot' = colAlpha('#1b4891',1))
+
+dd$disease[dd$disease == 'aSGS'] = 'atypical SGS'
+dd$disease[dd$disease == 'adult'] = 'normal (PD66164)'
+dd$disease[dd$disease == 'children'] = 'normal (Wang et al., 2021)'
+dd$disease = factor(dd$disease,c('MDS','SGS','atypical SGS','normal (PD66164)','normal (Wang et al., 2021)'))
+dd = dd[dd$disease != 'MDS',]
+
+dd$broadLineage = factor(dd$broadLineage,c('Ery.MK','Myeloid','B_cells','NK.T'))
+
+dd = data.table::fread('~/lustre_recovery/scratch125/mt22/SETBP1/manuscriptDraft_0225/Plots_v3/SupFig1d_lineageFraction_rawData.tsv')
+dd$age_range = mdat$age_range_years[match(dd$donorID,mdat$donor_id)]
+dd$age_range[is.na(dd$age_range)] = '1.2–5.5'
+dd = dd %>% mutate(age_group = dplyr::case_when(
+  age_range == '1.2–5.5' ~ '1-3',
+  age_range == 'adult' ~ '20-69',
+  .default = age_range
+))
+table(dd$broadLineage)
+table(reference_long$Lineage)
+dd_plot <- dd %>%
+  left_join(
+    reference_broad,
+    by = c(
+      "broadLineage",
+      "age_group"
+    )
+  )
+
+table(dd$age_range)
+# dd_plot$ref_high_frac[dd_plot$ref_high_frac >1] = 1
+# dd_plot$ref_low_frac[dd_plot$ref_low_frac >1] = 1
+dd_plot$broadLineage = factor(dd_plot$broadLineage,c('Ery.MK','Myeloid','B_cells','NK.T'))
+dd_plot$disease = factor(dd_plot$disease,c('SGS','atypical SGS',
+                                           'normal (Wang et al., 2021)',"normal (PD66164)"))
+dd_plot$age_group = factor(dd_plot$age_group,c('1-3','3-10','20-69'))
+
+ref_band <- dd_plot %>%
+  distinct(
+    broadLineage,
+    age_group,
+    ref_low_frac,
+    ref_high_frac
+  )
+
+p <- ggplot(
+  dd_plot,
+  aes(disease, frac, fill = setbp1_mutation_status)
+) +
+  ## Reference ranges (background)
+  geom_hline(
+    aes(yintercept = ref_low_frac),
+    linetype = "dotted",
+    colour = "grey40",
+    linewidth = 0.4
+  ) +
+  geom_hline(
+    aes(yintercept = ref_high_frac),
+    linetype = "dotted",
+    colour = "grey40",
+    linewidth = 0.4
+  ) +
+  
+  ## Boxplots
+  geom_boxplot(
+    outlier.shape = NA,
+    alpha = 0.9
+  ) +
+  
+  ## Points stratified by age group
+  geom_point(
+    aes(colour = age_range),
+    position = position_jitter(width = 0.15),
+    size = 2
+  ) +
+  
+  scale_fill_manual(values = SETBP1_mutation_col) +
+  
+  facet_grid(
+    ~ broadLineage + age_group,
+    scales = "free_x",
+    space = "free_x"
+  ) +
+  
+  theme_classic(base_size = 11) +
+  xlab("") +
+  ylab("Fraction of cells") +
+  
+  theme(
+    panel.border = element_rect(fill = FALSE, colour = "black"),
+    axis.line = element_blank(),
+    strip.background = element_blank(),
+    strip.text.x = element_text(size = 10, colour = "black"),
+    axis.ticks = element_line(colour = "black", linewidth = 0.2),
+    axis.text.x = element_text(
+      size = 9, angle = 90, vjust = 0.5, hjust = 1, colour = "black"
+    ),
+    axis.text.y = element_text(size = 10),
+    axis.text = element_text(colour = "black"),
+    legend.text = element_text(colour = "black", size = 10),
+    legend.title = element_text(colour = "black", size = 12)
+  )
+
+p
+
+p <- ggplot(
+  dd_plot,
+  aes(disease, frac)
+) +
+  
+  ## Reference range as grey band
+  geom_rect(
+    data = ref_band,
+    aes(
+      ymin = ref_low_frac,
+      ymax = ref_high_frac
+    ),
+    xmin = -Inf,
+    xmax = Inf,
+    inherit.aes = FALSE,
+    fill = "grey85",
+    alpha = 0.6
+  ) +
+  
+  ## Boxplots
+  geom_boxplot(
+    outlier.shape = NA,
+    alpha = 0.9,
+    colour='black'
+  ) +
+  
+  ## Points stratified by age group
+  geom_point(
+    aes(col = setbp1_mutation_status),
+    position = position_jitter(width = 0.15),
+    size = 1.8
+  ) +
+  
+  scale_colour_manual(values = SETBP1_mutation_col) +
+  scale_fill_manual(values = SETBP1_mutation_col) +
+  
+  facet_grid(
+    ~ broadLineage + age_group,
+    scales = "free_x",
+    space = "free_x"
+  ) +
+  
+  theme_classic(base_size = 11) +
+  xlab("") +
+  ylab("Fraction of cells") +
+  scale_fill_manual(values = SETBP1_mutation_col)+
+  theme(
+    panel.border = element_rect(fill = FALSE, colour = "black"),
+    axis.line = element_blank(),
+    strip.background = element_blank(),
+    strip.text.x = element_text(size = 10, colour = "black"),
+    axis.ticks = element_line(colour = "black", linewidth = 0.2),
+    axis.text.x = element_text(
+      size = 9, angle = 90, vjust = 0.5, hjust = 1, colour = "black"
+    ),
+    axis.text.y = element_text(size = 10),
+    axis.text = element_text(colour = "black"),
+    legend.text = element_text(colour = "black", size = 10),
+    legend.title = element_text(colour = "black", size = 12)
+  )
+
+p
+
+plotFun_broadLin_proportion = function(noFrame=FALSE,noPlot=FALSE){
+  # p = ggplot(dd,aes(disease,frac,fill=setbp1_mutation_status))+
+  #   geom_boxplot(outlier.shape = NA,alpha=0.9)+
+  #   geom_point()+
+  #   scale_fill_manual(values = SETBP1_mutation_col)+
+  #   facet_grid(~broadLineage,scales = 'free_x',space = 'free_x')+
+  #   theme_classic(base_size = 11)+xlab('')+
+  #   ylab('Fraction of cells')+
+  #   theme(panel.border = element_rect(fill=F,colour = 'black'),axis.line = element_blank(),
+  #         strip.background=element_blank(),
+  #         strip.text.x = element_text(size=10,colour = 'black'),
+  #         axis.ticks = element_line(colour = 'black',linewidth = 0.2),
+  #         axis.text.x = element_text(size = 9,angle = 90, vjust = 0.5,hjust = 1,colour = 'black'),
+  #         axis.text.y = element_text(size=10),
+  #         axis.text = element_text(colour = 'black'),
+  #         legend.text = element_text(colour = 'black',size = 10),
+  #         legend.title = element_text(colour = 'black',size = 12))
+  
+  print(p)
+}
+
+saveFig(file.path(plotDir,'SupFig1d_lineageFraction_v2'),plotFun_broadLin_proportion,
+        rawData=dd,width = 7.8,height = 4.2,res = 500)
 
 
 # R1: NK-kB pathways in lymphoid lineage ---------------------------------------
@@ -468,14 +810,14 @@ c( g_lymph_up_enrichR,
    g_lymph_specific_up_enrichR) %<-%
   lapply(gene_module_list,function(x) enrichr(x,dbs))
 
-enrichr_res = g_lymph_specific_up_enrichR
+enrichr_res = g_lymph_up_enrichR
 plotEnrich(enrichr_res[[6]][enrichr_res[[6]]$Adjusted.P.value < 0.05,], showTerms = 50, numChar = 40, y = "Count", orderBy = "Adjusted.P.value")
 
 
 allTerms_up = extract_enrichR.res(enrichR_result = enrichr_res,
                                   module_direction = 'up',
                                   pVal_cutoff = 0.1,
-                                  min_overlapFrac = 0.04,
+                                  min_overlapFrac = 0.05,
                                   db_toExtract = names(enrichr_res)[c(6)],
                                   nTerm = 15)
 
@@ -490,7 +832,7 @@ plotFun_enrichR_res = function(noFrame=FALSE,noPlot=FALSE){
     ggtitle(module_type)+
     scale_color_gradient(low=grey(0.8),high = 'black')+
     theme_classic(base_size = 11)+
-    scale_x_log10()+
+    scale_x_log10(breaks = c(10,100,1000),labels = c(10,100,1000))+
     theme(panel.border = element_rect(fill=F,colour = 'black'),axis.line = element_blank(),
           strip.background=element_blank(),
           strip.text.y = element_text(size=10,colour = 'black'),
@@ -505,7 +847,7 @@ plotFun_enrichR_res = function(noFrame=FALSE,noPlot=FALSE){
   print(p3)
 }
 saveFig(file.path(plotDir,paste0(module_type,'_UP_enrichR')),plotFun_enrichR_res,
-        rawData=allTerms_up,width = 5,height = 5.5,res = 500)
+        rawData=allTerms_up,width = 4.7,height = 5.3,res = 500)
 
 
 
@@ -846,8 +1188,12 @@ beat_mutation_mdat = read.delim('Data/BEAT_AML/beataml_wes_wv1to4_mutations_dbga
 beat_mutation_mdat$setbp1_mut = ifelse(beat_mutation_mdat$symbol == 'SETBP1',beat_mutation_mdat$hgvsp_short,'none')
 beat_mutation_mdat$setbp1_mut_in_hotspot = ifelse((beat_mutation_mdat$symbol == 'SETBP1'),ifelse(beat_mutation_mdat$protein_position == '1070/1596','outside_hotspot','inside_hotspot'),'none')
 # Summarise mutation info by DNA sampleID
-beat_mutation_mdat.summary = beat_mutation_mdat %>% group_by(dbgap_sample_id) %>% summarise(n_mut = n_distinct(hgvsc),setbp1_mut_in_hotspot=paste0(unique(setbp1_mut_in_hotspot),collapse = ','),
-                                                                                            setbp1_mut=paste0(unique(setbp1_mut),collapse = ','))
+beat_mutation_mdat.summary = beat_mutation_mdat %>% 
+  group_by(dbgap_sample_id) %>% 
+  summarise(n_mut = n_distinct(hgvsc),
+            mutated_genes = paste0(unique(symbol),collapse = ','),
+            setbp1_mut_in_hotspot=paste0(unique(setbp1_mut_in_hotspot),collapse = ','),
+            setbp1_mut=paste0(unique(setbp1_mut),collapse = ','))
 beat_mutation_mdat.summary$setbp1_mut_in_hotspot = ifelse(grepl(',',beat_mutation_mdat.summary$setbp1_mut_in_hotspot),gsub('none,','',beat_mutation_mdat.summary$setbp1_mut_in_hotspot),as.character(beat_mutation_mdat.summary$setbp1_mut_in_hotspot))
 beat_mutation_mdat.summary$setbp1_mut = ifelse(grepl(',',beat_mutation_mdat.summary$setbp1_mut),gsub('none,','',beat_mutation_mdat.summary$setbp1_mut),as.character(beat_mutation_mdat.summary$setbp1_mut))
 

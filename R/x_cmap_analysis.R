@@ -24,8 +24,6 @@ if(!dir.exists(outDir)){
   dir.create(outDir,recursive = T)
 }
 
-setwd(outDir)
-
 top_n = 10
 cellline = read.csv('~/lustre_mt22/Aneuploidy/MLDS_scRNAseq/Results/CLUE/cmap_cellline.csv')
 cellline$group = ifelse(cellline$Culture.Properties == 'Suspension','Leukaemia',cellline$Type)
@@ -80,6 +78,7 @@ cp_toKeep_similar$group = 'similar'
 cp_toKeep_nfkb = cp_toKeep[grepl('nfkb|NFkB|NF-?κB|NFKB',cp_toKeep$moa),]
 cp_toKeep_nfkb$group = ifelse(grepl('NFKB activator',cp_toKeep_nfkb$moa),'nfkb_activator',
                               'nfkb_inhibitor')
+cp_toKeep_nfkb = cp_toKeep_nfkb[cp_toKeep_nfkb$group != 'nfkb_activator',]
 
 cp_toKeep = do.call(rbind,list(cp_toKeep_similar,cp_toKeep_dissimilar,cp_toKeep_nfkb))
 cp_toKeep$group = ifelse(grepl('nfkb|NFkB|NF-?κB|NFKB',cp_toKeep$moa) &
@@ -199,7 +198,7 @@ plotDir='~/lustre_mt22/SETBP1/manuscriptDraft_0325/Plots'
 
 plotFun_cmap_boxplot = function(noFrame=FALSE,noPlot=FALSE){
   
-  p = ggplot(cp.sub_plot,aes(norm_cs,pert_iname))+
+  p = ggplot(cp.sub_plot,aes(norm_cs,reorder(pert_iname,norm_cs,median)))+
     geom_boxplot(aes(fill=group),outlier.shape = NA)+
     geom_quasirandom(height=1,grouponX=T,size=0.6)+
     #scale_fill_manual(values = c('high'=col25[2],'mid'=grey(0.8),'low'=col25[1]))+
